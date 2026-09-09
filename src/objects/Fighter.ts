@@ -114,6 +114,12 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     this.nativeFacing = config.nativeFacing || (config.initialFacingLeft ? 'left' : 'right');
     this.attackFacing = this.nativeFacing;
 
+    // ★ KURENAI（くのいち）弱体化調整：忍者ガラスキャノン設計（耐久度を100->85へ引き下げ）
+    if (this.spriteKey === 'kunoichi') {
+      this.maxHp = 85;
+      this.hp = 85;
+    }
+
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
@@ -198,6 +204,12 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     this.themeColor = themeColor;
     if (nativeFacing) {
       this.nativeFacing = nativeFacing;
+    }
+    if (this.spriteKey === 'kunoichi') {
+      this.maxHp = 85;
+      this.hp = Math.min(this.hp, 85);
+    } else {
+      this.maxHp = 100;
     }
     this.setTexture(`${spriteKey}_idle`, 0);
     this.play(`${spriteKey}_idle`, true);
@@ -707,8 +719,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
 
       // ★ 対連打AI：相手が同一技を連打・連発してきた場合の迎撃＆割り込み！
       if (opponentIsSpamming && absDist < 165) {
-        // A. ドライブインパクト割り込み（アーマー2発耐え＋確定パニッシュ崩れ！）
-        if (!this.isBurnout && this.driveGauge >= 1.0 && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && Math.random() < 0.60) {
+        // A. ドライブインパクト割り込み
+        const impactSpamChance = this.spriteKey === 'kunoichi' ? 0.15 : 0.60;
+        if (!this.isBurnout && this.driveGauge >= 1.0 && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && Math.random() < impactSpamChance) {
           if (this.consumeDrive(1.0)) {
             this.triggerDriveImpact();
             this.cpuNextAttackReadyTime = now + 900;
@@ -716,8 +729,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
           }
         }
 
-        // B. ドライブパリィ（連打を完全無効化しドライブゲージ回復）
-        if (!this.isBurnout && Math.random() < 0.55) {
+        // B. ドライブパリィ
+        const parrySpamChance = this.spriteKey === 'kunoichi' ? 0.15 : 0.55;
+        if (!this.isBurnout && Math.random() < parrySpamChance) {
           this.isParrying = true;
           this.parryStartTime = now;
           this.consumeDrive(0.5);
@@ -741,8 +755,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
         return;
       }
 
-      // ① 相手が攻撃してきたら -> パリィ または ガード
-      if (opponentIsAttacking && absDist < 170 && !this.isBurnout && Math.random() < 0.38) {
+      // ① 相手が攻撃してきたら -> パリィ または ガード（くのいちCPUはパリィ率低減）
+      const parryAtkChance = this.spriteKey === 'kunoichi' ? 0.12 : 0.38;
+      if (opponentIsAttacking && absDist < 170 && !this.isBurnout && Math.random() < parryAtkChance) {
         // ドライブパリィ
         this.isParrying = true;
         this.parryStartTime = now;
@@ -753,9 +768,10 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
         this.isParrying = false;
       }
 
-      // ② 相手の飛び込みには対空
+      // ② 相手の飛び込みには対空（★ くのいちは対空率を75%->18%へ激減！プレイヤーが飛び込んで差し返せる！）
       if (opponentInAir && absDist < 140 && isGrounded && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime) {
-        if (Math.random() < 0.75) {
+        const antiAirChance = this.spriteKey === 'kunoichi' ? 0.18 : 0.75;
+        if (Math.random() < antiAirChance) {
           this.triggerAttack('anti_air');
           this.cpuNextAttackReadyTime = now + 800;
           return;
@@ -768,8 +784,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
         return;
       }
 
-      // ④ ドライブインパクト（約22%でぶっ放す！）
-      if (!this.isBurnout && this.driveGauge >= 1.5 && absDist < 140 && Math.random() < 0.22 && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime) {
+      // ④ ドライブインパクト（くのいちは控えめ）
+      const diChance = this.spriteKey === 'kunoichi' ? 0.12 : 0.22;
+      if (!this.isBurnout && this.driveGauge >= 1.5 && absDist < 140 && Math.random() < diChance && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime) {
         if (this.consumeDrive(1.0)) {
           this.triggerDriveImpact();
           this.cpuNextAttackReadyTime = now + 900;
@@ -793,12 +810,12 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
           this.isCrouching = this.opponent.isCrouching;
         }
       } else if (absDist > 160) {
-        // ★ くのいち専用AI：遠距離からの苦無投擲（乱射防止・適切なクールダウン）
+        // ★ くのいち専用AI：遠距離からの苦無投擲（頻度半減＆3.2秒の超ロングクールダウン）
         if (this.spriteKey === 'kunoichi' && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
           const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
-          if (!hasProj && Math.random() < 0.35) {
+          if (!hasProj && Math.random() < 0.20) {
             this.triggerAttack('stand_mp');
-            this.cpuNextAttackReadyTime = now + 1800; // 1.8秒のクールダウン
+            this.cpuNextAttackReadyTime = now + 3200; // 3.2秒のクールダウン
             return;
           }
         }
@@ -1297,8 +1314,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
           animKey = 'kunoichi_attack1';
         } else {
           animKey = 'kunoichi_attack2';
-          // 予備動作（発生120ms）ののちに苦無射出
-          this.scene.time.delayedCall(120, () => {
+          // 予備動作（発生180ms）ののちに苦無射出（見てから飛び越えや差し込みが狙える予備動作）
+          this.scene.time.delayedCall(180, () => {
             if (this.isAttacking && !this.isDead && !this.isStunned) {
               (this.scene as any).spawnProjectile?.(this);
             }
@@ -1372,7 +1389,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     let recovery = 280;
     const isKunaiThrow = this.spriteKey === 'kunoichi' && (wasKind === 'stand_mp' || wasKind === 'stand_hp');
     if (isKunaiThrow) {
-      recovery = 680; // ★ くのいち苦無投擲の特大後隙（約0.68秒）！相手の飛び込みや差し返しで確定反撃を叩き込める十分な隙を作る
+      recovery = 880; // ★ くのいち苦無投擲の特大後隙（約0.88秒）！相手の飛び込みや差し返しで確定反撃（パニッシュカウンター）を叩き込める特大の隙を作る
     } else if (wasKind === 'crouch_hk') {
       recovery = 520; // 名物「大足・足払い」はガード・空振り時に特大の隙！
     } else if (wasKind === 'drive_impact') {
@@ -1697,6 +1714,11 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       else if (k.includes('hp') || k.includes('hk') || k === 'anti_air') dmg = 22;
       else if (k.includes('mp') || k.includes('mk') || k === 'crouch_low') dmg = 14;
       else if (k.includes('lp') || k.includes('lk') || k === 'stand_jab') dmg = 8;
+
+      // ★ くのいち弱体化：通常技・必殺技のダメージを15%カット（機動性特化型キャラの火力適正化）
+      if (this.spriteKey === 'kunoichi') {
+        dmg = Math.max(1, Math.round(dmg * 0.85));
+      }
 
       const hitstop = this.getHitstopDuration(this.currentAttackKind);
 
