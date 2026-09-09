@@ -793,11 +793,14 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
           this.isCrouching = this.opponent.isCrouching;
         }
       } else if (absDist > 160) {
-        // ★ くのいち専用AI：遠距離からの苦無（クナイ）投擲！
-        if (this.spriteKey === 'kunoichi' && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded && Math.random() < 0.65) {
-          this.triggerAttack('stand_mp');
-          this.cpuNextAttackReadyTime = now + 900;
-          return;
+        // ★ くのいち専用AI：遠距離からの苦無投擲（乱射防止・適切なクールダウン）
+        if (this.spriteKey === 'kunoichi' && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
+          const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
+          if (!hasProj && Math.random() < 0.35) {
+            this.triggerAttack('stand_mp');
+            this.cpuNextAttackReadyTime = now + 1800; // 1.8秒のクールダウン
+            return;
+          }
         }
         this.cpuAction = 'approach';
         this.isCrouching = false;
@@ -1286,13 +1289,21 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
         // くのいち専用: 華麗な旋風脚キック！
         animKey = 'kunoichi_kick';
       } else if (isHeavy || kind === 'stand_mp') {
-        // くのいち専用: 苦無（クナイ）投擲！遠距離・強攻撃で飛び道具射出
-        animKey = 'kunoichi_attack2';
-        this.scene.time.delayedCall(80, () => {
-          if (this.isAttacking && !this.isDead && !this.isStunned) {
-            (this.scene as any).spawnProjectile?.(this);
-          }
-        });
+        // くのいち専用: 苦無（クナイ）投擲！
+        // ★ 画面内に既に自分の苦無が存在する場合は連射不可（格ゲー伝統の1発制限）
+        const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
+        if (hasProj) {
+          // 画面に苦無がある間は近接斬撃に化ける
+          animKey = 'kunoichi_attack1';
+        } else {
+          animKey = 'kunoichi_attack2';
+          // 予備動作（発生110ms）ののちに苦無射出
+          this.scene.time.delayedCall(110, () => {
+            if (this.isAttacking && !this.isDead && !this.isStunned) {
+              (this.scene as any).spawnProjectile?.(this);
+            }
+          });
+        }
       } else {
         // くのいち専用: 鋭利な苦無近接斬撃！
         animKey = 'kunoichi_attack1';
@@ -1323,6 +1334,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     if (animKey.endsWith('_kick')) {
       duration = 320;
     }
+    if (animKey === 'kunoichi_attack2') {
+      duration = 420; // 苦無投擲の振り抜き動作
+    }
 
     if (this.attackSafetyTimer) this.attackSafetyTimer.remove();
     this.attackSafetyTimer = this.scene.time.delayedCall(duration, () => {
@@ -1344,7 +1358,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     // ★ 本格格闘ゲーム仕様：技ごとの後隙（硬直時間）
     // 後隙中は移動・ジャンプ・ガードが一切できず、攻撃を受けると「パニッシュカウンター」確定！
     let recovery = 280;
-    if (wasKind === 'crouch_hk') {
+    if (this.spriteKey === 'kunoichi' && (wasKind === 'stand_mp' || wasKind === 'stand_hp')) {
+      recovery = 520; // ★ くのいち苦無投擲の特大後隙！相手の飛び込みに対して確定反撃される明確な隙を作る
+    } else if (wasKind === 'crouch_hk') {
       recovery = 520; // 名物「大足・足払い」はガード・空振り時に特大の隙！
     } else if (wasKind === 'drive_impact') {
       recovery = 560; // ドライブインパクト空振りの特大隙！

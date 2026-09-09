@@ -746,6 +746,10 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  public hasActiveProjectile(owner: Fighter): boolean {
+    return this.projectiles.some(p => p.owner === owner && p.isActive);
+  }
+
   public spawnProjectile(owner: Fighter): void {
     const target = (owner === this.player1) ? this.player2 : this.player1;
     const dir = owner.attackFacing;
@@ -760,7 +764,7 @@ export class GameScene extends Phaser.Scene {
       y: startY,
       direction: dir,
       speed: 760,
-      damage: 85,
+      damage: 45, // 弱パンチ（75）よりも控えめな牽制ダメージ
       textureKey: 'kunoichi_kunai'
     });
     this.projectiles.push(proj);

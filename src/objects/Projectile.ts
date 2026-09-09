@@ -28,7 +28,7 @@ export class Projectile extends Phaser.GameObjects.Container {
     super(config.scene, config.x, config.y);
     this.owner = config.owner;
     this.target = config.target;
-    this.damage = config.damage ?? 75;
+    this.damage = config.damage ?? 45;
     const speed = config.speed ?? 720;
     this.vx = config.direction === 'right' ? speed : -speed;
 
@@ -110,13 +110,14 @@ export class Projectile extends Phaser.GameObjects.Container {
     const isGuarding = this.target.isGuarding;
 
     if (isGuarding) {
-      this.target.consumeDrive(0.35);
+      this.target.consumeDrive(0.06);
       this.target.onGuardSuccess(knockbackDir);
       SoundManager.getInstance().playGuard();
       this.createHitSpark(0x60a5fa);
     } else {
-      this.target.takeDamage(this.damage, knockbackDir, 'stand_hp');
-      SoundManager.getInstance().playHit('medium');
+      // 弱パンチ相当（より控えめ）のダメージと軽ヒットストップ
+      this.target.takeDamage(this.damage, knockbackDir, 'stand_lp');
+      SoundManager.getInstance().playHit('light');
       this.createHitSpark(0xc084fc);
     }
 
