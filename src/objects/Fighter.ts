@@ -214,8 +214,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
   }
 
   public updateFacing(): void {
-    // 攻撃動作中・被弾硬直中・膝崩れダウン中は体の向きを固定（途中で急反転しない）
-    if (this.isAttacking || this.isStunned || this.isCrumpled) return;
+    // 攻撃動作中・後隙硬直中・被弾硬直中・膝崩れダウン中は体の向きを固定（途中で急反転しない）
+    if (this.isAttacking || this.isRecovering || this.isStunned || this.isCrumpled) return;
 
     const desired = this.getFacingDirection();
     this.attackFacing = desired;
@@ -315,7 +315,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
           const lkDown = (this.controls?.lk && this.controls.lk.isDown) || (arcade?.lkIsDown ?? false);
           const throwPressed = (arcade?.throwJustDown ?? false) || (arcade?.throwIsDown ?? false) || (lpDown && lkDown);
           if (throwPressed) {
-            this.finishAttack();
+            this.abortAttack();
             this.triggerThrow();
             return;
           }
@@ -1162,7 +1162,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     if (this.isDead) return;
 
     if (this.isAttacking) {
-      this.finishAttack();
+      this.abortAttack();
     }
     this.isRecovering = false;
     this.isStunned = true;
@@ -1288,7 +1288,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       if (isKick) {
         // くのいち専用: 華麗な旋風脚キック！
         animKey = 'kunoichi_kick';
-      } else if (isHeavy || kind === 'stand_mp') {
+      } else if (!kind.startsWith('air_') && !kind.startsWith('crouch_') && (kind === 'stand_mp' || kind === 'stand_hp')) {
         // くのいち専用: 苦無（クナイ）投擲！
         // ★ 画面内に既に自分の苦無が存在する場合は連射不可（格ゲー伝統の1発制限）
         const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
@@ -1297,8 +1297,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
           animKey = 'kunoichi_attack1';
         } else {
           animKey = 'kunoichi_attack2';
-          // 予備動作（発生110ms）ののちに苦無射出
-          this.scene.time.delayedCall(110, () => {
+          // 予備動作（発生120ms）ののちに苦無射出
+          this.scene.time.delayedCall(120, () => {
             if (this.isAttacking && !this.isDead && !this.isStunned) {
               (this.scene as any).spawnProjectile?.(this);
             }
@@ -1344,6 +1344,18 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
+  public abortAttack(): void {
+    if (this.attackSafetyTimer) {
+      this.attackSafetyTimer.remove();
+      this.attackSafetyTimer = undefined;
+    }
+    this.isAttacking = false;
+    this.isImpact = false;
+    this.armorHitsLeft = 0;
+    this.hasDealtDamageThisAttack = false;
+    this.isRecovering = false;
+  }
+
   private finishAttack(): void {
     if (this.attackSafetyTimer) {
       this.attackSafetyTimer.remove();
@@ -1358,8 +1370,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     // ★ 本格格闘ゲーム仕様：技ごとの後隙（硬直時間）
     // 後隙中は移動・ジャンプ・ガードが一切できず、攻撃を受けると「パニッシュカウンター」確定！
     let recovery = 280;
-    if (this.spriteKey === 'kunoichi' && (wasKind === 'stand_mp' || wasKind === 'stand_hp')) {
-      recovery = 520; // ★ くのいち苦無投擲の特大後隙！相手の飛び込みに対して確定反撃される明確な隙を作る
+    const isKunaiThrow = this.spriteKey === 'kunoichi' && (wasKind === 'stand_mp' || wasKind === 'stand_hp');
+    if (isKunaiThrow) {
+      recovery = 680; // ★ くのいち苦無投擲の特大後隙（約0.68秒）！相手の飛び込みや差し返しで確定反撃を叩き込める十分な隙を作る
     } else if (wasKind === 'crouch_hk') {
       recovery = 520; // 名物「大足・足払い」はガード・空振り時に特大の隙！
     } else if (wasKind === 'drive_impact') {
@@ -1403,6 +1416,11 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
         } else if (this.spriteKey === 'kenji') {
           this.setTexture('kenji_attack2', 0);
         }
+      } else if (isKunaiThrow) {
+        // ★ 苦無投擲後は、硬直（リカバリー）終了まで腕を前方に伸ばした無防備な決めポーズ（frame 3）を静止維持！
+        // 隙だらけのフォロースルー姿勢が視覚的にも相手・自分にハッキリ伝わる！
+        this.anims.stop();
+        this.setTexture('kunoichi_attack2', 3);
       } else {
         this.play(`${this.spriteKey}_idle`, true);
       }
@@ -1436,7 +1454,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     if (!myBody) return null;
 
     // ★ くのいちの苦無（飛び道具）投擲は実弾Projectileが判定を持つため、近接判定は発生させない
-    if (this.spriteKey === 'kunoichi' && (this.currentAttackKind === 'stand_hp' || this.currentAttackKind === 'stand_mp' || this.currentAttackKind === 'crouch_hp')) {
+    if (this.spriteKey === 'kunoichi' && (this.currentAttackKind === 'stand_hp' || this.currentAttackKind === 'stand_mp')) {
       return null;
     }
 
@@ -1772,7 +1790,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     if (this.isDead) return;
 
     this.hp = Math.max(0, this.hp - 18);
-    this.finishAttack();
+    this.abortAttack();
 
     SoundManager.getInstance().playImpact(true);
 
@@ -1858,7 +1876,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
   public onParried(knockbackDir: number): void {
     this.setVelocityX(knockbackDir * -120);
     this.isStunned = true;
-    this.finishAttack();
+    this.abortAttack();
     this.scene.time.delayedCall(300, () => {
       this.isStunned = false;
     });
@@ -1893,9 +1911,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       this.createPunishCounterPopup();
     }
 
-    this.isRecovering = false;
+    this.abortAttack();
     this.hp = Math.max(0, this.hp - amount);
-    this.finishAttack();
 
     // ★ 同一技3連続ヒットによる強制ダウン（ハメ防止リセット！）
     if (forceKnockdown) {

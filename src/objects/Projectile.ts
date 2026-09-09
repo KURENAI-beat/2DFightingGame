@@ -28,8 +28,8 @@ export class Projectile extends Phaser.GameObjects.Container {
     super(config.scene, config.x, config.y);
     this.owner = config.owner;
     this.target = config.target;
-    this.damage = config.damage ?? 45;
-    const speed = config.speed ?? 720;
+    this.damage = config.damage ?? 75;
+    const speed = config.speed ?? 640;
     this.vx = config.direction === 'right' ? speed : -speed;
 
     config.scene.add.existing(this);
