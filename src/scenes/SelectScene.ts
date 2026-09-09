@@ -25,12 +25,12 @@ const BIOS: Record<string, CharacterBio> = {
     speed: '★★☆☆☆',
     power: '★★★★★',
   },
-  kenji: {
-    role: '忍術双剣士 (Ninja)',
-    style: '高速ダッシュと二刀手数の圧倒的ラッシュ',
-    special: '二刀疾風突き (Attack1) / 旋風斬撃 (Attack2)',
-    speed: '★★★★★',
-    power: '★★★☆☆',
+  kotaro: {
+    role: '魔導術士 (Arcane Mage)',
+    style: '【中遠距離】青水晶の魔導弾と空間制圧の秘術バースト',
+    special: '魔導弾 (Attack1) / エーテルバースト (Attack2) / 秘術障壁 (Impact)',
+    speed: '★★★☆☆',
+    power: '★★★★☆',
   },
   ayane: {
     role: '戦乙女・武闘家 (Valkyrie)',
@@ -95,7 +95,7 @@ export class SelectScene extends Phaser.Scene {
     // 立ち構えアニメ用スプライトシート
     this.load.spritesheet('mack_idle', '/assets/samuraiMack/Idle.png', { frameWidth: 200, frameHeight: 200 });
     this.load.spritesheet('gladiator_idle', '/assets/gladiator/Idle.png', { frameWidth: 200, frameHeight: 200 });
-    this.load.spritesheet('kenji_idle', '/assets/kenji/Idle.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_idle', '/assets/kotaro/Idle.png', { frameWidth: 200, frameHeight: 200 });
     this.load.spritesheet('ayane_idle', '/assets/ayane/Idle.png', { frameWidth: 200, frameHeight: 200 });
     this.load.spritesheet('kaizer_idle', '/assets/kaizer/Idle.png', { frameWidth: 200, frameHeight: 200 });
     this.load.spritesheet('kunoichi_idle', '/assets/kunoichi/Idle.png', { frameWidth: 200, frameHeight: 200 });
@@ -109,8 +109,8 @@ export class SelectScene extends Phaser.Scene {
     if (!this.anims.exists('gladiator_idle')) {
       this.anims.create({ key: 'gladiator_idle', frames: this.anims.generateFrameNumbers('gladiator_idle', { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
     }
-    if (!this.anims.exists('kenji_idle')) {
-      this.anims.create({ key: 'kenji_idle', frames: this.anims.generateFrameNumbers('kenji_idle', { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
+    if (!this.anims.exists('kotaro_idle')) {
+      this.anims.create({ key: 'kotaro_idle', frames: this.anims.generateFrameNumbers('kotaro_idle', { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
     }
     if (!this.anims.exists('ayane_idle')) {
       this.anims.create({ key: 'ayane_idle', frames: this.anims.generateFrameNumbers('ayane_idle', { start: 0, end: 3 }), frameRate: 6, repeat: -1 });

@@ -12,6 +12,11 @@ export interface ProjectileConfig {
   speed?: number;
   damage?: number;
   textureKey?: string;
+  particleColor?: number;
+  hitColor?: number;
+  hitboxWidth?: number;
+  hitboxHeight?: number;
+  scale?: number;
 }
 
 export class Projectile extends Phaser.GameObjects.Container {
@@ -23,6 +28,10 @@ export class Projectile extends Phaser.GameObjects.Container {
 
   private sprite: Phaser.GameObjects.Sprite;
   private trailTimer: number = 0;
+  private particleColor: number;
+  private hitColor: number;
+  private hitboxWidth: number;
+  private hitboxHeight: number;
 
   constructor(config: ProjectileConfig) {
     super(config.scene, config.x, config.y);
@@ -31,13 +40,17 @@ export class Projectile extends Phaser.GameObjects.Container {
     this.damage = config.damage ?? 2;
     const speed = config.speed ?? 420;
     this.vx = config.direction === 'right' ? speed : -speed;
+    this.particleColor = config.particleColor ?? 0xc084fc;
+    this.hitColor = config.hitColor ?? 0xc084fc;
+    this.hitboxWidth = config.hitboxWidth ?? 22;
+    this.hitboxHeight = config.hitboxHeight ?? 10;
 
     config.scene.add.existing(this);
 
-    // Kunai sprite
+    // Sprite
     const tex = config.textureKey || 'kunoichi_kunai';
     this.sprite = config.scene.add.sprite(0, 0, tex);
-    this.sprite.setScale(2.0);
+    this.sprite.setScale(config.scale ?? 2.0);
     if (config.direction === 'left') {
       this.sprite.setFlipX(true);
     }
@@ -56,7 +69,7 @@ export class Projectile extends Phaser.GameObjects.Container {
     // Aerodynamic rotation
     this.sprite.rotation = Math.sin(time * 0.02) * 0.08;
 
-    // Trailing particles (purple ninja chakra)
+    // Trailing particles
     this.trailTimer += delta;
     if (this.trailTimer > 35) {
       this.trailTimer = 0;
@@ -78,8 +91,8 @@ export class Projectile extends Phaser.GameObjects.Container {
       this.x - (this.vx > 0 ? 15 : -15),
       this.y + Phaser.Math.Between(-3, 3),
       Phaser.Math.Between(2, 4),
-      0xc084fc,
-      0.7
+      this.particleColor,
+      0.75
     );
     particle.setDepth(24);
     this.scene.tweens.add({
@@ -96,8 +109,10 @@ export class Projectile extends Phaser.GameObjects.Container {
     const hurtbox = this.target.getHurtbox();
     if (!hurtbox) return;
 
-    // Kunai hitbox (小さく薄い判定 22x10: 簡単にジャンプで飛び越えられる)
-    const myHitbox = new Phaser.Geom.Rectangle(this.x - 11, this.y - 5, 22, 10);
+    // Projectile hitbox
+    const hw = this.hitboxWidth / 2;
+    const hh = this.hitboxHeight / 2;
+    const myHitbox = new Phaser.Geom.Rectangle(this.x - hw, this.y - hh, this.hitboxWidth, this.hitboxHeight);
 
     if (Phaser.Geom.Intersects.RectangleToRectangle(myHitbox, hurtbox)) {
       this.onHitTarget();
@@ -115,10 +130,9 @@ export class Projectile extends Phaser.GameObjects.Container {
       SoundManager.getInstance().playGuard();
       this.createHitSpark(0x60a5fa);
     } else {
-      // 弱攻撃（4）の半分の超微小ダメージ（2）と軽ヒットストップ
       this.target.takeDamage(this.damage, knockbackDir, 'stand_lp');
       SoundManager.getInstance().playHit('light');
-      this.createHitSpark(0xc084fc);
+      this.createHitSpark(this.hitColor);
     }
 
     this.destroyProjectile();

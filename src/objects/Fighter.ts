@@ -84,7 +84,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
 
   public isCPU: boolean = false;
   private controls?: FighterControls;
-  private spriteKey: string;
+  public spriteKey: string;
 
   // キャラクタースケール
   private readonly baseScale: number = 2.8;
@@ -819,20 +819,50 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
             return;
           }
         }
-        this.cpuAction = 'approach';
-        this.isCrouching = false;
+        // ★ コタロウ専用AI：中遠距離魔導術士（魔導弾とエーテルバーストで空間制圧）
+        if (this.spriteKey === 'kotaro' && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
+          const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
+          if (!hasProj && Math.random() < 0.35) {
+            this.triggerAttack('stand_mp'); // 蒼き魔導弾射出
+            this.cpuNextAttackReadyTime = now + 2000;
+            return;
+          } else if (absDist <= 220 && Math.random() < 0.30) {
+            this.triggerAttack('stand_hp'); // エーテルバースト（地面爆発）
+            this.cpuNextAttackReadyTime = now + 1200;
+            return;
+          }
+        }
+        // コタロウは間合い200〜260pxの中遠距離をキープ
+        if (this.spriteKey === 'kotaro' && absDist < 220) {
+          this.cpuAction = 'retreat';
+          this.isCrouching = this.opponent.isCrouching;
+        } else {
+          this.cpuAction = 'approach';
+          this.isCrouching = false;
+        }
         if (isGrounded && Math.random() < 0.08) {
           this.setVelocityY(-this.jumpPower);
         }
       } else {
         // 至近距離
-        if (now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded && Math.random() < 0.55) {
-          this.triggerAttack(Math.random() < 0.5 ? 'stand_jab' : 'crouch_low');
-          this.cpuNextAttackReadyTime = now + 700;
-          return;
+        if (this.spriteKey === 'kotaro') {
+          // コタロウは至近距離に入られたら魔導旋風キックや足払いで相手を押し返して間合いを取る
+          if (now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded && Math.random() < 0.50) {
+            this.triggerAttack(Math.random() < 0.5 ? 'stand_hk' : 'crouch_low');
+            this.cpuNextAttackReadyTime = now + 800;
+            return;
+          }
+          this.cpuAction = 'retreat';
+          this.isCrouching = this.opponent.isCrouching;
+        } else {
+          if (now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded && Math.random() < 0.55) {
+            this.triggerAttack(Math.random() < 0.5 ? 'stand_jab' : 'crouch_low');
+            this.cpuNextAttackReadyTime = now + 700;
+            return;
+          }
+          this.cpuAction = 'retreat';
+          this.isCrouching = this.opponent.isCrouching;
         }
-        this.cpuAction = 'retreat';
-        this.isCrouching = this.opponent.isCrouching;
       }
     }
 
@@ -862,6 +892,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
           this.play('mack_crouch_walk', true);
         } else if (this.spriteKey === 'kunoichi') {
           this.play('kunoichi_crouch_walk', true);
+        } else if (this.spriteKey === 'kotaro') {
+          this.play('kotaro_crouch_walk', true);
         } else {
           this.play(`${this.spriteKey}_crouch`, true);
         }
@@ -881,11 +913,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
           this.play('mack_crouch', true);
         } else if (this.spriteKey === 'kunoichi') {
           this.play('kunoichi_crouch', true);
-        } else if (this.spriteKey === 'kenji') {
-          if (this.anims.isPlaying) {
-            this.anims.stop();
-          }
-          this.setTexture('kenji_attack2', 0);
+        } else if (this.spriteKey === 'kotaro') {
+          this.play('kotaro_crouch', true);
         }
       }
       return;
@@ -898,7 +927,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
         this.anims.currentAnim?.key === 'mack_crouch' ||
         this.anims.currentAnim?.key === 'mack_crouch_walk' ||
         this.anims.currentAnim?.key === 'kunoichi_crouch' ||
-        this.anims.currentAnim?.key === 'kunoichi_crouch_walk'
+        this.anims.currentAnim?.key === 'kunoichi_crouch_walk' ||
+        this.anims.currentAnim?.key === 'kotaro_crouch' ||
+        this.anims.currentAnim?.key === 'kotaro_crouch_walk'
       );
       if (this.currentState === 'crouching' || isCrouchAnim) {
         this.play(`${this.spriteKey}_idle`, true);
@@ -972,6 +1003,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     else if (this.spriteKey === 'ayane') impactAnim = 'ayane_impact';
     else if (this.spriteKey === 'kaizer') impactAnim = 'kaizer_impact';
     else if (this.spriteKey === 'kunoichi') impactAnim = 'kunoichi_impact';
+    else if (this.spriteKey === 'kotaro') impactAnim = 'kotaro_impact';
     else if (this.spriteKey === 'mack') impactAnim = 'mack_impact';
     this.play(impactAnim, true);
 
@@ -1003,7 +1035,11 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     // 画面暗転＋スーパーアーツカットイン演出！
     this.createSuperArtCutinVisual();
 
-    this.play(`${this.spriteKey}_attack1`, true);
+    if (this.spriteKey === 'kotaro') {
+      this.play('kotaro_attack2', true);
+    } else {
+      this.play(`${this.spriteKey}_attack1`, true);
+    }
 
     if (this.attackSafetyTimer) this.attackSafetyTimer.remove();
     this.attackSafetyTimer = this.scene.time.delayedCall(600, () => {
@@ -1294,13 +1330,33 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
         // カイザー弱中打: 高速ロケットピストンパンチ！
         animKey = 'kaizer_attack1';
       }
-    } else if (this.spriteKey === 'kenji') {
-      if (isKick || isHeavy) {
-        // 忍者ケンジ: 身を沈めて低空から繰り出す二刀旋風斬り / 旋風脚！
-        animKey = 'kenji_attack2';
+    } else if (this.spriteKey === 'kotaro') {
+      if (isKick) {
+        // コタロウ専用: 魔導旋風（ヴォルテックスサイクロン）！
+        animKey = 'kotaro_kick';
+      } else if (!kind.startsWith('air_') && !kind.startsWith('crouch_') && (kind === 'stand_mp' || kind === 'stand_hp')) {
+        // コタロウ専用: 中遠距離魔導術！
+        if (kind === 'stand_mp') {
+          const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
+          if (hasProj) {
+            animKey = 'kotaro_attack1';
+          } else {
+            animKey = 'kotaro_attack1';
+            // 発生160msで青水晶の魔導弾射出
+            this.scene.time.delayedCall(160, () => {
+              if (this.isAttacking && !this.isDead && !this.isStunned) {
+                (this.scene as any).spawnProjectile?.(this);
+              }
+            });
+          }
+        } else {
+          // stand_hp: エーテルバースト（巨大な青色魔力噴出）！
+          animKey = 'kotaro_attack2';
+        }
+      } else if (isHeavy) {
+        animKey = 'kotaro_attack2';
       } else {
-        // 忍者ケンジ: 前方への鋭利な高速二刀刺突！
-        animKey = 'kenji_attack1';
+        animKey = 'kotaro_attack1';
       }
     } else if (this.spriteKey === 'kunoichi') {
       if (isKick) {
@@ -1355,6 +1411,12 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     if (animKey === 'kunoichi_attack2') {
       duration = 420; // 苦無投擲の振り抜き動作
     }
+    if (animKey === 'kotaro_attack1') {
+      duration = 320;
+    }
+    if (animKey === 'kotaro_attack2') {
+      duration = 440;
+    }
 
     if (this.attackSafetyTimer) this.attackSafetyTimer.remove();
     this.attackSafetyTimer = this.scene.time.delayedCall(duration, () => {
@@ -1389,8 +1451,11 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     // 後隙中は移動・ジャンプ・ガードが一切できず、攻撃を受けると「パニッシュカウンター」確定！
     let recovery = 280;
     const isKunaiThrow = this.spriteKey === 'kunoichi' && (wasKind === 'stand_mp' || wasKind === 'stand_hp');
+    const isMagicCast = this.spriteKey === 'kotaro' && wasKind === 'stand_mp';
     if (isKunaiThrow) {
       recovery = 880; // ★ くのいち苦無投擲の特大後隙（約0.88秒）！相手の飛び込みや差し返しで確定反撃（パニッシュカウンター）を叩き込める特大の隙を作る
+    } else if (isMagicCast) {
+      recovery = 560; // ★ コタロウ魔導弾発動後の硬直（中遠距離ゾーニングの適度な隙）
     } else if (wasKind === 'crouch_hk') {
       recovery = 520; // 名物「大足・足払い」はガード・空振り時に特大の隙！
     } else if (wasKind === 'drive_impact') {
@@ -1431,14 +1496,17 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
           this.play('mack_crouch', true);
         } else if (this.spriteKey === 'kunoichi') {
           this.play('kunoichi_crouch', true);
-        } else if (this.spriteKey === 'kenji') {
-          this.setTexture('kenji_attack2', 0);
+        } else if (this.spriteKey === 'kotaro') {
+          this.play('kotaro_crouch', true);
         }
       } else if (isKunaiThrow) {
         // ★ 苦無投擲後は、硬直（リカバリー）終了まで腕を前方に伸ばした無防備な決めポーズ（frame 3）を静止維持！
-        // 隙だらけのフォロースルー姿勢が視覚的にも相手・自分にハッキリ伝わる！
         this.anims.stop();
         this.setTexture('kunoichi_attack2', 3);
+      } else if (isMagicCast) {
+        // ★ 魔導弾詠唱後は、硬直終了まで杖を突き出したフォロースルー姿勢（frame 3）を静止維持！
+        this.anims.stop();
+        this.setTexture('kotaro_attack1', 3);
       } else {
         this.play(`${this.spriteKey}_idle`, true);
       }
@@ -1471,9 +1539,13 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     const myBody = this.body as Phaser.Physics.Arcade.Body;
     if (!myBody) return null;
 
-    // ★ くのいちの苦無（飛び道具）投擲は実弾Projectileが判定を持つため、近接判定は発生させない
+    // ★ 飛び道具投擲時は実弾Projectileが判定を持つため、近接判定は発生させない
     if (this.spriteKey === 'kunoichi' && (this.currentAttackKind === 'stand_hp' || this.currentAttackKind === 'stand_mp')) {
       return null;
+    }
+    if (this.spriteKey === 'kotaro' && this.currentAttackKind === 'stand_mp') {
+      const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
+      if (!hasProj) return null;
     }
 
     const isRight = this.attackFacing === 'right';
@@ -2278,7 +2350,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
 
     const charKey = this.spriteKey;
     const isGladiator = charKey === 'gladiator';
-    const isKenji = charKey === 'kenji';
+    const isKotaro = charKey === 'kotaro';
     const isAyane = charKey === 'ayane';
     const isKaizer = charKey === 'kaizer';
     const isKunoichi = charKey === 'kunoichi';
@@ -2287,7 +2359,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       // 対空/強打撃
       let color = 0x38bdf8;
       if (isGladiator) color = 0xf59e0b;
-      else if (isKenji) color = 0xa855f7;
+      else if (isKotaro) color = 0x00d2ff;
       else if (isAyane) color = 0x10b981;
       else if (isKaizer) color = 0xef4444;
       else if (isKunoichi) color = 0xc084fc;
@@ -2315,12 +2387,18 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
         // くのいち: 忍気サークル
         swing.lineStyle(3, 0xe9d5ff, 0.9);
         swing.strokeCircle(this.x + dir * 55, this.y - 15, 25);
+      } else if (isKotaro) {
+        // コタロウ: 蒼き魔導ルーン＆エーテルサークル
+        swing.lineStyle(3, 0x67e8f9, 0.95);
+        swing.strokeCircle(this.x + dir * 65, this.y - 25, 34);
+        swing.fillStyle(0x00d2ff, 0.65);
+        swing.fillCircle(this.x + dir * 65, this.y - 25, 14);
       }
     } else if (kind === 'crouch_hk' || kind === 'crouch_mk' || kind === 'crouch_lk' || kind === 'crouch_low' || kind === 'stand_lk') {
       // 下段・足払い
       let color = kind === 'crouch_hk' ? 0xf59e0b : 0xfacc15;
       if (isGladiator) color = 0xd97706;
-      else if (isKenji) color = 0xc084fc;
+      else if (isKotaro) color = 0x06b6d4;
       else if (isAyane) color = 0x059669;
       else if (isKaizer) color = 0xb91c1c;
       else if (isKunoichi) color = 0x9333ea;
@@ -2333,7 +2411,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       // 飛び込み
       let color = 0x06b6d4;
       if (isGladiator) color = 0xf97316;
-      else if (isKenji) color = 0xf43f5e;
+      else if (isKotaro) color = 0x38bdf8;
       else if (isAyane) color = 0x34d399;
       else if (isKaizer) color = 0xf87171;
       else if (isKunoichi) color = 0xc084fc;
@@ -2347,7 +2425,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       // 大キック/中キック
       let color = 0x38bdf8;
       if (isGladiator) color = 0xfbbf24;
-      else if (isKenji) color = 0xec4899;
+      else if (isKotaro) color = 0x00d2ff;
       else if (isAyane) color = 0x10b981;
       else if (isKaizer) color = 0xef4444;
       else if (isKunoichi) color = 0xc084fc;
@@ -2371,12 +2449,16 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       } else if (isKunoichi) {
         swing.lineStyle(4, 0xd8b4fe, 0.9);
         swing.strokeCircle(this.x + dir * 75, this.y - 5, 26);
+      } else if (isKotaro) {
+        // コタロウ: 魔導旋風ヴォルテックス
+        swing.lineStyle(4, 0x67e8f9, 0.95);
+        swing.strokeCircle(this.x + dir * 75, this.y - 5, 28);
       }
     } else if (kind === 'stand_mp' || kind === 'crouch_mp') {
       // 中打撃: ストレート閃光
       let color = 0x06b6d4;
       if (isGladiator) color = 0xf59e0b;
-      else if (isKenji) color = 0x818cf8;
+      else if (isKotaro) color = 0x00f0ff;
       else if (isAyane) color = 0x34d399;
       else if (isKaizer) color = 0xf87171;
       else if (isKunoichi) color = 0xc084fc;
@@ -2390,7 +2472,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       // 弱打撃: 素早いジャブ / 突き
       let color = 0xffffff;
       if (isGladiator) color = 0xfef08a;
-      else if (isKenji) color = 0xe879f9;
+      else if (isKotaro) color = 0xbae6fd;
       else if (isAyane) color = 0xa7f3d0;
       else if (isKaizer) color = 0xfca5a5;
       else if (isKunoichi) color = 0xe9d5ff;

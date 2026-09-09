@@ -14,7 +14,7 @@ export const FIGHTER_ROSTER: Array<{
 }> = [
   { key: 'mack', name: 'TOMOE', displayName: 'TOMOE (SAMURAI)', color: '#00f0ff', numColor: 0x00f0ff, nativeFacing: 'right' },
   { key: 'gladiator', name: 'TITUS', displayName: 'TITUS (GLADIATOR)', color: '#f59e0b', numColor: 0xf59e0b, nativeFacing: 'right' },
-  { key: 'kenji', name: 'KENJI', displayName: 'KENJI (NINJA)', color: '#ff007f', numColor: 0xff007f, nativeFacing: 'left' },
+  { key: 'kotaro', name: 'KOTARO', displayName: 'KOTARO (MAGE)', color: '#00d2ff', numColor: 0x00d2ff, nativeFacing: 'right' },
   { key: 'ayane', name: 'AYANE', displayName: 'AYANE (VALKYRIE)', color: '#10b981', numColor: 0x10b981, nativeFacing: 'right' },
   { key: 'kaizer', name: 'KAIZER', displayName: 'KAIZER (CYBORG)', color: '#ef4444', numColor: 0xef4444, nativeFacing: 'right' },
   { key: 'kunoichi', name: 'KURENAI', displayName: 'KURENAI (KUNOICHI)', color: '#c084fc', numColor: 0xc084fc, nativeFacing: 'right' }
@@ -127,15 +127,21 @@ export class GameScene extends Phaser.Scene {
     this.load.spritesheet('mack_hit', '/assets/samuraiMack/Take Hit.png', { frameWidth: 200, frameHeight: 200 });
     this.load.spritesheet('mack_death', '/assets/samuraiMack/Death.png', { frameWidth: 200, frameHeight: 200 });
 
-    // Player 2 (Kenji)
-    this.load.spritesheet('kenji_idle', '/assets/kenji/Idle.png', { frameWidth: 200, frameHeight: 200 });
-    this.load.spritesheet('kenji_run', '/assets/kenji/Run.png', { frameWidth: 200, frameHeight: 200 });
-    this.load.spritesheet('kenji_jump', '/assets/kenji/Jump.png', { frameWidth: 200, frameHeight: 200 });
-    this.load.spritesheet('kenji_fall', '/assets/kenji/Fall.png', { frameWidth: 200, frameHeight: 200 });
-    this.load.spritesheet('kenji_attack1', '/assets/kenji/Attack1.png', { frameWidth: 200, frameHeight: 200 });
-    this.load.spritesheet('kenji_attack2', '/assets/kenji/Attack2.png', { frameWidth: 200, frameHeight: 200 });
-    this.load.spritesheet('kenji_hit', '/assets/kenji/Take hit.png', { frameWidth: 200, frameHeight: 200 });
-    this.load.spritesheet('kenji_death', '/assets/kenji/Death.png', { frameWidth: 200, frameHeight: 200 });
+    // Player: Kotaro (Mage)
+    this.load.spritesheet('kotaro_idle', '/assets/kotaro/Idle.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_walk', '/assets/kotaro/Walk.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_run', '/assets/kotaro/Run.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_jump', '/assets/kotaro/Jump.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_fall', '/assets/kotaro/Fall.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_attack1', '/assets/kotaro/Attack1.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_attack2', '/assets/kotaro/Attack2.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_kick', '/assets/kotaro/Kick.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_impact', '/assets/kotaro/Impact.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_crouch', '/assets/kotaro/Crouch.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_crouch_walk', '/assets/kotaro/CrouchWalk.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_hit', '/assets/kotaro/Take Hit.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.spritesheet('kotaro_death', '/assets/kotaro/Death.png', { frameWidth: 200, frameHeight: 200 });
+    this.load.image('kotaro_magic', '/assets/kotaro/magic.png');
 
     // New Fighter: Gladiator (Titus)
     this.load.spritesheet('gladiator_idle', '/assets/gladiator/Idle.png', { frameWidth: 200, frameHeight: 200 });
@@ -753,8 +759,10 @@ export class GameScene extends Phaser.Scene {
   public spawnProjectile(owner: Fighter): void {
     const target = (owner === this.player1) ? this.player2 : this.player1;
     const dir = owner.attackFacing;
-    const startX = dir === 'right' ? owner.x + 35 : owner.x - 35;
-    const startY = owner.y - 12;
+    const isKotaro = owner.spriteKey === 'kotaro';
+
+    const startX = dir === 'right' ? owner.x + (isKotaro ? 45 : 35) : owner.x - (isKotaro ? 45 : 35);
+    const startY = isKotaro ? owner.y - 18 : owner.y - 12;
 
     const proj = new Projectile({
       scene: this,
@@ -763,9 +771,14 @@ export class GameScene extends Phaser.Scene {
       x: startX,
       y: startY,
       direction: dir,
-      speed: 420, // 以前の640から大幅減速！見てから余裕でジャンプ・ガード可能
-      damage: 2,  // 弱攻撃（4）の半分（2）！微小な牽制ダメージ
-      textureKey: 'kunoichi_kunai'
+      speed: isKotaro ? 480 : 420,
+      damage: isKotaro ? 8 : 2, // コタロウは魔導術士（適度な中遠距離魔導弾ダメージ8）
+      textureKey: isKotaro ? 'kotaro_magic' : 'kunoichi_kunai',
+      particleColor: isKotaro ? 0x00d2ff : 0xc084fc,
+      hitColor: isKotaro ? 0x00ffff : 0xc084fc,
+      scale: isKotaro ? 1.0 : 2.0,
+      hitboxWidth: isKotaro ? 32 : 22,
+      hitboxHeight: isKotaro ? 20 : 10,
     });
     this.projectiles.push(proj);
   }
@@ -819,15 +832,20 @@ export class GameScene extends Phaser.Scene {
     this.anims.create({ key: 'mack_hit', frames: this.anims.generateFrameNumbers('mack_hit', { start: 0, end: 2 }), frameRate: 12, repeat: 0 });
     this.anims.create({ key: 'mack_death', frames: this.anims.generateFrameNumbers('mack_death', { start: 0, end: 5 }), frameRate: 8, repeat: 0 });
 
-    // Kenji
-    this.anims.create({ key: 'kenji_idle', frames: this.anims.generateFrameNumbers('kenji_idle', { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
-    this.anims.create({ key: 'kenji_run', frames: this.anims.generateFrameNumbers('kenji_run', { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
-    this.anims.create({ key: 'kenji_jump', frames: this.anims.generateFrameNumbers('kenji_jump', { start: 0, end: 1 }), frameRate: 6, repeat: 0 });
-    this.anims.create({ key: 'kenji_fall', frames: this.anims.generateFrameNumbers('kenji_fall', { start: 0, end: 1 }), frameRate: 6, repeat: 0 });
-    this.anims.create({ key: 'kenji_attack1', frames: this.anims.generateFrameNumbers('kenji_attack1', { start: 0, end: 3 }), frameRate: 12, repeat: 0 });
-    this.anims.create({ key: 'kenji_attack2', frames: this.anims.generateFrameNumbers('kenji_attack2', { start: 0, end: 3 }), frameRate: 14, repeat: 0 });
-    this.anims.create({ key: 'kenji_hit', frames: this.anims.generateFrameNumbers('kenji_hit', { start: 0, end: 2 }), frameRate: 12, repeat: 0 });
-    this.anims.create({ key: 'kenji_death', frames: this.anims.generateFrameNumbers('kenji_death', { start: 0, end: 6 }), frameRate: 8, repeat: 0 });
+    // Kotaro (Mage)
+    this.anims.create({ key: 'kotaro_idle', frames: this.anims.generateFrameNumbers('kotaro_idle', { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
+    this.anims.create({ key: 'kotaro_walk', frames: this.anims.generateFrameNumbers('kotaro_walk', { start: 0, end: 5 }), frameRate: 8, repeat: -1 });
+    this.anims.create({ key: 'kotaro_run', frames: this.anims.generateFrameNumbers('kotaro_run', { start: 0, end: 5 }), frameRate: 10, repeat: -1 });
+    this.anims.create({ key: 'kotaro_jump', frames: this.anims.generateFrameNumbers('kotaro_jump', { start: 0, end: 1 }), frameRate: 6, repeat: 0 });
+    this.anims.create({ key: 'kotaro_fall', frames: this.anims.generateFrameNumbers('kotaro_fall', { start: 0, end: 1 }), frameRate: 6, repeat: 0 });
+    this.anims.create({ key: 'kotaro_attack1', frames: this.anims.generateFrameNumbers('kotaro_attack1', { start: 0, end: 3 }), frameRate: 12, repeat: 0 });
+    this.anims.create({ key: 'kotaro_attack2', frames: this.anims.generateFrameNumbers('kotaro_attack2', { start: 0, end: 3 }), frameRate: 12, repeat: 0 });
+    this.anims.create({ key: 'kotaro_kick', frames: this.anims.generateFrameNumbers('kotaro_kick', { start: 0, end: 3 }), frameRate: 12, repeat: 0 });
+    this.anims.create({ key: 'kotaro_impact', frames: this.anims.generateFrameNumbers('kotaro_impact', { start: 0, end: 3 }), frameRate: 10, repeat: 0 });
+    this.anims.create({ key: 'kotaro_crouch', frames: this.anims.generateFrameNumbers('kotaro_crouch', { start: 0, end: 1 }), frameRate: 4, repeat: -1 });
+    this.anims.create({ key: 'kotaro_crouch_walk', frames: this.anims.generateFrameNumbers('kotaro_crouch_walk', { start: 0, end: 5 }), frameRate: 7, repeat: -1 });
+    this.anims.create({ key: 'kotaro_hit', frames: this.anims.generateFrameNumbers('kotaro_hit', { start: 0, end: 2 }), frameRate: 12, repeat: 0 });
+    this.anims.create({ key: 'kotaro_death', frames: this.anims.generateFrameNumbers('kotaro_death', { start: 0, end: 6 }), frameRate: 8, repeat: 0 });
 
     // Gladiator (Titus)
     this.anims.create({ key: 'gladiator_idle', frames: this.anims.generateFrameNumbers('gladiator_idle', { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
