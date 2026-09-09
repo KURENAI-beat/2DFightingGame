@@ -3,6 +3,74 @@ import { FighterControls, FighterConfig, FighterState, AttackKind } from '../typ
 import { ArcadeControllerManager } from '../utils/ArcadeControllerManager';
 import { SoundManager } from '../utils/SoundManager';
 
+export interface FighterScaleConfig {
+  scale: number;
+  previewScale: number;
+  bodyWidth: number;
+  bodyHeight: number;
+  offsetX: number;
+  offsetY: number;
+  feetY: number;
+}
+
+// 全キャラクターの視覚的身長（頭〜足裏）を約190pxに完全統一するスケーリング設定
+export const CHARACTER_SCALE_PROFILES: Record<string, FighterScaleConfig> = {
+  mack: {
+    scale: 2.80,
+    previewScale: 2.10,
+    bodyWidth: 34,
+    bodyHeight: 68,
+    offsetX: 83,
+    offsetY: 61,
+    feetY: 129,
+  },
+  gladiator: {
+    scale: 2.83,
+    previewScale: 2.12,
+    bodyWidth: 34,
+    bodyHeight: 67,
+    offsetX: 83,
+    offsetY: 59,
+    feetY: 126,
+  },
+  kotaro: {
+    scale: 2.44,
+    previewScale: 1.83,
+    bodyWidth: 39,
+    bodyHeight: 78,
+    offsetX: 81,
+    offsetY: 51,
+    feetY: 129,
+  },
+  ayane: {
+    scale: 3.20,
+    previewScale: 2.40,
+    bodyWidth: 30,
+    bodyHeight: 60,
+    offsetX: 85,
+    offsetY: 65,
+    feetY: 125,
+  },
+  kaizer: {
+    scale: 2.98,
+    previewScale: 2.24,
+    bodyWidth: 32,
+    bodyHeight: 64,
+    offsetX: 84,
+    offsetY: 62,
+    feetY: 126,
+  },
+  kunoichi: {
+    scale: 2.53,
+    previewScale: 1.90,
+    bodyWidth: 38,
+    bodyHeight: 75,
+    offsetX: 81,
+    offsetY: 53,
+    feetY: 128,
+  },
+};
+
 export class Fighter extends Phaser.Physics.Arcade.Sprite {
   public fighterId: string;
   public fighterName: string;
@@ -87,7 +155,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
   public spriteKey: string;
 
   // キャラクタースケール
-  private readonly baseScale: number = 2.8;
+  public scaleFactor: number = 2.8;
 
   // 移動速度
   private readonly forwardSpeed: number = 165;
@@ -123,11 +191,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
-    this.setScale(this.baseScale);
-    // 格闘ゲーム標準の引き締まったPushbox（身体押し合い判定）
-    // 頭部(y=60)から足元(y=131)まで正確にカバーし、地面に足が接地するように設定
-    this.body?.setSize(34, 71);
-    this.body?.setOffset(83, 60);
+    // 全キャラの身長（頭〜足裏）を約190pxに完全統一し、足裏が地面にピッタリ接地するプロファイルを適用
+    this.applyScaleProfile(this.spriteKey);
 
     this.setCollideWorldBounds(true);
     this.setBounce(0, 0);
@@ -198,6 +263,14 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     this.updateFacing();
   }
 
+  public applyScaleProfile(key: string): void {
+    const profile = CHARACTER_SCALE_PROFILES[key] || CHARACTER_SCALE_PROFILES['mack'];
+    this.scaleFactor = profile.scale;
+    this.setScale(profile.scale);
+    this.body?.setSize(profile.bodyWidth, profile.bodyHeight);
+    this.body?.setOffset(profile.offsetX, profile.offsetY);
+  }
+
   public setCharacter(spriteKey: string, name: string, themeColor: number, nativeFacing?: 'left' | 'right'): void {
     this.spriteKey = spriteKey;
     this.fighterName = name;
@@ -211,6 +284,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.maxHp = 100;
     }
+    this.applyScaleProfile(spriteKey);
     this.setTexture(`${spriteKey}_idle`, 0);
     this.play(`${spriteKey}_idle`, true);
     this.updateFacing();

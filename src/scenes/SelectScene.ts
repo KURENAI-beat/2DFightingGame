@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { FIGHTER_ROSTER } from './GameScene';
 import { SoundManager } from '../utils/SoundManager';
+import { CHARACTER_SCALE_PROFILES } from '../objects/Fighter';
 
 interface CharacterBio {
   role: string;
@@ -321,7 +322,8 @@ export class SelectScene extends Phaser.Scene {
       // サムネイル用スプライト（中央）
       const thumbKey = `${fighter.key}_idle`;
       const thumb = this.add.sprite(cardW / 2, 75, thumbKey, 0);
-      thumb.setScale(1.2);
+      const profile = CHARACTER_SCALE_PROFILES[fighter.key] || CHARACTER_SCALE_PROFILES['mack'];
+      thumb.setScale(1.2 * (profile.scale / 2.8));
       if (fighter.nativeFacing === 'left') {
         thumb.setFlipX(true);
       }
@@ -338,11 +340,11 @@ export class SelectScene extends Phaser.Scene {
       container.add(name);
 
       // 特徴バッジ
-      const badgeText = idx === 5 ? '★飛び道具' : (idx === 0 ? '抜刀剣士' : (idx === 1 ? '重装甲' : (idx === 2 ? '高速二刀' : (idx === 3 ? '神速蹴技' : 'プラズマ'))));
+      const badgeText = idx === 5 ? '★飛び道具' : (idx === 0 ? '抜刀剣士' : (idx === 1 ? '重装甲' : (idx === 2 ? '★遠距離魔法' : (idx === 3 ? '神速蹴技' : 'プラズマ'))));
       const badge = this.add.text(cardW / 2, 154, badgeText, {
         fontFamily: 'sans-serif',
         fontSize: '10px',
-        color: idx === 5 ? '#facc15' : '#94a3b8'
+        color: (idx === 5 || idx === 2) ? '#facc15' : '#94a3b8'
       }).setOrigin(0.5);
       container.add(badge);
 
@@ -500,6 +502,10 @@ export class SelectScene extends Phaser.Scene {
     this.p1SpecialText.setText(`技: ${b1.special}`);
     this.p1StatsText.setText(`SPEED: ${b1.speed}  POWER: ${b1.power}`);
 
+    // 1P スケール & 接地整列（全キャラクターの身長を統一）
+    const p1Profile = CHARACTER_SCALE_PROFILES[p1.key] || CHARACTER_SCALE_PROFILES['mack'];
+    this.p1Sprite.setScale(p1Profile.previewScale);
+    this.p1Sprite.y = 296 - (p1Profile.feetY - 100) * p1Profile.previewScale;
     this.p1Sprite.play(`${p1.key}_idle`, true);
     if (p1.nativeFacing === 'left') {
       this.p1Sprite.setFlipX(true);
@@ -515,6 +521,10 @@ export class SelectScene extends Phaser.Scene {
     this.p2SpecialText.setText(`技: ${b2.special}`);
     this.p2StatsText.setText(`SPEED: ${b2.speed}  POWER: ${b2.power}`);
 
+    // 2P スケール & 接地整列（全キャラクターの身長を統一）
+    const p2Profile = CHARACTER_SCALE_PROFILES[p2.key] || CHARACTER_SCALE_PROFILES['mack'];
+    this.p2Sprite.setScale(p2Profile.previewScale);
+    this.p2Sprite.y = 296 - (p2Profile.feetY - 100) * p2Profile.previewScale;
     this.p2Sprite.play(`${p2.key}_idle`, true);
     if (p2.nativeFacing === 'left') {
       this.p2Sprite.setFlipX(false);
