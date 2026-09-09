@@ -1101,7 +1101,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
               this.scene.cameras.main.shake(190, 0.015);
               this.createThrowSlamVisual(slamX, slamY);
               if (this.opponent && !this.opponent.isDead) {
-                this.opponent.onThrowSlammed(throwDir);
+                const throwDmg = this.spriteKey === 'kunoichi' ? 10 : 24;
+                this.opponent.onThrowSlammed(throwDir, throwDmg);
               }
             }
           });
@@ -1192,13 +1193,13 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
   }
 
   // ★ 投げで地面に叩きつけられた時のリアクション
-  public onThrowSlammed(throwDir: number): void {
+  public onThrowSlammed(throwDir: number, damage: number = 24): void {
     if (this.isDead) return;
 
     this.clearTint();
     this.setRotation(0);
     this.isRecovering = false;
-    this.hp = Math.max(0, this.hp - 24);
+    this.hp = Math.max(0, this.hp - damage);
 
     this.scene.events.emit('fighter-damaged', this);
 
@@ -1667,7 +1668,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       const isCounter = this.opponent.isAttacking || this.opponent.isGuarding || this.opponent.isRecovering;
       this.applyHitstop(240);
       this.opponent.applyHitstop(240);
-      this.opponent.onDriveImpactHit(knockbackDir, isCounter);
+      const diDmg = this.spriteKey === 'kunoichi' ? 8 : 18;
+      this.opponent.onDriveImpactHit(knockbackDir, isCounter, diDmg);
       this.createDriveImpactHitVisual(contactX, contactY, isCounter);
       return;
     }
@@ -1715,9 +1717,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       else if (k.includes('mp') || k.includes('mk') || k === 'crouch_low') dmg = 14;
       else if (k.includes('lp') || k.includes('lk') || k === 'stand_jab') dmg = 8;
 
-      // ★ くのいち弱体化：通常技・必殺技のダメージを15%カット（機動性特化型キャラの火力適正化）
+      // ★ くのいち超大幅弱体化：通常技・必殺技・SAダメージを55%カット（約0.45倍、小技4・強技10・SA15）
       if (this.spriteKey === 'kunoichi') {
-        dmg = Math.max(1, Math.round(dmg * 0.85));
+        dmg = Math.max(1, Math.round(dmg * 0.45));
       }
 
       const hitstop = this.getHitstopDuration(this.currentAttackKind);
@@ -1808,10 +1810,10 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
   }
 
   // ★ ドライブインパクト直撃時（パニッシュカウンター & 膝崩れ）
-  public onDriveImpactHit(knockbackDir: number, isPunishCounter: boolean): void {
+  public onDriveImpactHit(knockbackDir: number, isPunishCounter: boolean, damage: number = 18): void {
     if (this.isDead) return;
 
-    this.hp = Math.max(0, this.hp - 18);
+    this.hp = Math.max(0, this.hp - damage);
     this.abortAttack();
 
     SoundManager.getInstance().playImpact(true);

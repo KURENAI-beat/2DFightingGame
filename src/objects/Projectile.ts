@@ -28,7 +28,7 @@ export class Projectile extends Phaser.GameObjects.Container {
     super(config.scene, config.x, config.y);
     this.owner = config.owner;
     this.target = config.target;
-    this.damage = config.damage ?? 4;
+    this.damage = config.damage ?? 2;
     const speed = config.speed ?? 420;
     this.vx = config.direction === 'right' ? speed : -speed;
 
@@ -115,7 +115,7 @@ export class Projectile extends Phaser.GameObjects.Container {
       SoundManager.getInstance().playGuard();
       this.createHitSpark(0x60a5fa);
     } else {
-      // 弱パンチ（8）の半分のダメージ（4）と軽ヒットストップ
+      // 弱攻撃（4）の半分の超微小ダメージ（2）と軽ヒットストップ
       this.target.takeDamage(this.damage, knockbackDir, 'stand_lp');
       SoundManager.getInstance().playHit('light');
       this.createHitSpark(0xc084fc);

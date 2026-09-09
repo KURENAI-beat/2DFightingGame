@@ -764,7 +764,7 @@ export class GameScene extends Phaser.Scene {
       y: startY,
       direction: dir,
       speed: 420, // 以前の640から大幅減速！見てから余裕でジャンプ・ガード可能
-      damage: 4,  // 弱攻撃（8）の半分（4）！チクッとした控えめな牽制ダメージ
+      damage: 2,  // 弱攻撃（4）の半分（2）！微小な牽制ダメージ
       textureKey: 'kunoichi_kunai'
     });
     this.projectiles.push(proj);
