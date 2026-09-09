@@ -142,6 +142,7 @@ export class GameScene extends Phaser.Scene {
     this.load.spritesheet('kotaro_hit', '/assets/kotaro/Take Hit.png', { frameWidth: 200, frameHeight: 200 });
     this.load.spritesheet('kotaro_death', '/assets/kotaro/Death.png', { frameWidth: 200, frameHeight: 200 });
     this.load.image('kotaro_magic', '/assets/kotaro/magic.png');
+    this.load.spritesheet('kotaro_blue_bird', '/assets/kotaro/blue_bird.png', { frameWidth: 64, frameHeight: 64 });
 
     // New Fighter: Gladiator (Titus)
     this.load.spritesheet('gladiator_idle', '/assets/gladiator/Idle.png', { frameWidth: 200, frameHeight: 200 });
@@ -777,8 +778,10 @@ export class GameScene extends Phaser.Scene {
       particleColor: isKotaro ? 0x00d2ff : 0xc084fc,
       hitColor: isKotaro ? 0x00ffff : 0xc084fc,
       scale: isKotaro ? 1.0 : 2.0,
-      hitboxWidth: isKotaro ? 32 : 22,
-      hitboxHeight: isKotaro ? 20 : 10,
+      hitboxWidth: isKotaro ? 36 : 22,
+      hitboxHeight: isKotaro ? 24 : 10,
+      familiarKey: isKotaro ? 'kotaro_blue_bird' : undefined,
+      familiarAnim: isKotaro ? 'blue_bird_fly' : undefined,
     });
     this.projectiles.push(proj);
   }
@@ -846,6 +849,12 @@ export class GameScene extends Phaser.Scene {
     this.anims.create({ key: 'kotaro_crouch_walk', frames: this.anims.generateFrameNumbers('kotaro_crouch_walk', { start: 0, end: 5 }), frameRate: 7, repeat: -1 });
     this.anims.create({ key: 'kotaro_hit', frames: this.anims.generateFrameNumbers('kotaro_hit', { start: 0, end: 2 }), frameRate: 12, repeat: 0 });
     this.anims.create({ key: 'kotaro_death', frames: this.anims.generateFrameNumbers('kotaro_death', { start: 0, end: 6 }), frameRate: 8, repeat: 0 });
+    this.anims.create({
+      key: 'blue_bird_fly',
+      frames: this.anims.generateFrameNumbers('kotaro_blue_bird', { start: 0, end: 3 }),
+      frameRate: 10,
+      repeat: -1
+    });
 
     // Gladiator (Titus)
     this.anims.create({ key: 'gladiator_idle', frames: this.anims.generateFrameNumbers('gladiator_idle', { start: 0, end: 3 }), frameRate: 6, repeat: -1 });

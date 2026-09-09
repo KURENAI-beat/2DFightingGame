@@ -17,6 +17,8 @@ export interface ProjectileConfig {
   hitboxWidth?: number;
   hitboxHeight?: number;
   scale?: number;
+  familiarKey?: string;
+  familiarAnim?: string;
 }
 
 export class Projectile extends Phaser.GameObjects.Container {
@@ -27,6 +29,7 @@ export class Projectile extends Phaser.GameObjects.Container {
   public isActive: boolean = true;
 
   private sprite: Phaser.GameObjects.Sprite;
+  private birdSprite?: Phaser.GameObjects.Sprite;
   private trailTimer: number = 0;
   private particleColor: number;
   private hitColor: number;
@@ -56,6 +59,23 @@ export class Projectile extends Phaser.GameObjects.Container {
     }
     this.add(this.sprite);
 
+    // Familiar Companion (e.g. Kotaro's Magical Blue Bird)
+    const isKotaro = this.owner.spriteKey === 'kotaro';
+    const famKey = config.familiarKey || (isKotaro ? 'kotaro_blue_bird' : undefined);
+    const famAnim = config.familiarAnim || (isKotaro ? 'blue_bird_fly' : undefined);
+
+    if (famKey && config.scene.textures.exists(famKey)) {
+      this.birdSprite = config.scene.add.sprite(0, -4, famKey);
+      this.birdSprite.setScale(0.85);
+      if (config.direction === 'left') {
+        this.birdSprite.setFlipX(true);
+      }
+      if (famAnim && config.scene.anims.exists(famAnim)) {
+        this.birdSprite.play(famAnim);
+      }
+      this.add(this.birdSprite);
+    }
+
     // Projectile depth
     this.setDepth(25);
   }
@@ -68,6 +88,12 @@ export class Projectile extends Phaser.GameObjects.Container {
 
     // Aerodynamic rotation
     this.sprite.rotation = Math.sin(time * 0.02) * 0.08;
+
+    // Gentle bird flight undulating motion
+    if (this.birdSprite) {
+      this.birdSprite.y = -4 + Math.sin(time * 0.014) * 3;
+      this.birdSprite.rotation = Math.sin(time * 0.014) * 0.05;
+    }
 
     // Trailing particles
     this.trailTimer += delta;
@@ -102,6 +128,28 @@ export class Projectile extends Phaser.GameObjects.Container {
       duration: 180,
       onComplete: () => particle.destroy()
     });
+
+    // Special azure feather & stardust trail for Kotaro's Blue Bird
+    if (this.owner.spriteKey === 'kotaro') {
+      const featherColors = [0x38bdf8, 0x67e8f9, 0xbae6fd, 0xffffff];
+      const featherColor = Phaser.Utils.Array.GetRandom(featherColors);
+      const feather = this.scene.add.circle(
+        this.x - (this.vx > 0 ? 20 : -20) + Phaser.Math.Between(-4, 4),
+        this.y - 4 + Phaser.Math.Between(-6, 6),
+        Phaser.Math.Between(2, 3),
+        featherColor,
+        0.85
+      );
+      feather.setDepth(24);
+      this.scene.tweens.add({
+        targets: feather,
+        alpha: 0,
+        scale: 0.2,
+        y: feather.y + Phaser.Math.Between(3, 10),
+        duration: 250,
+        onComplete: () => feather.destroy()
+      });
+    }
   }
 
   private checkCollision(): void {
@@ -153,6 +201,31 @@ export class Projectile extends Phaser.GameObjects.Container {
         duration: 200,
         onComplete: () => spark.destroy()
       });
+    }
+
+    if (this.owner.spriteKey === 'kotaro') {
+      // Azure feathers dispersal burst on impact
+      for (let i = 0; i < 6; i++) {
+        const feather = this.scene.add.circle(
+          this.x,
+          this.y - 4,
+          Phaser.Math.Between(2, 4),
+          0x38bdf8,
+          0.9
+        );
+        feather.setDepth(91);
+        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        const dist = Phaser.Math.Between(25, 52);
+        this.scene.tweens.add({
+          targets: feather,
+          x: this.x + Math.cos(angle) * dist,
+          y: this.y + Math.sin(angle) * dist + 8,
+          alpha: 0,
+          scale: 0.1,
+          duration: 280,
+          onComplete: () => feather.destroy()
+        });
+      }
     }
   }
 
