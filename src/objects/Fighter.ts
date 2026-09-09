@@ -1101,7 +1101,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
               this.scene.cameras.main.shake(190, 0.015);
               this.createThrowSlamVisual(slamX, slamY);
               if (this.opponent && !this.opponent.isDead) {
-                const throwDmg = this.spriteKey === 'kunoichi' ? 10 : 24;
+                const throwDmg = this.spriteKey === 'kunoichi' ? 21 : 24;
                 this.opponent.onThrowSlammed(throwDir, throwDmg);
               }
             }
@@ -1668,7 +1668,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       const isCounter = this.opponent.isAttacking || this.opponent.isGuarding || this.opponent.isRecovering;
       this.applyHitstop(240);
       this.opponent.applyHitstop(240);
-      const diDmg = this.spriteKey === 'kunoichi' ? 8 : 18;
+      const diDmg = this.spriteKey === 'kunoichi' ? 15 : 18;
       this.opponent.onDriveImpactHit(knockbackDir, isCounter, diDmg);
       this.createDriveImpactHitVisual(contactX, contactY, isCounter);
       return;
@@ -1717,9 +1717,9 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       else if (k.includes('mp') || k.includes('mk') || k === 'crouch_low') dmg = 14;
       else if (k.includes('lp') || k.includes('lk') || k === 'stand_jab') dmg = 8;
 
-      // ★ くのいち超大幅弱体化：通常技・必殺技・SAダメージを55%カット（約0.45倍、小技4・強技10・SA15）
+      // ★ くのいち調整：飛び道具以外は他キャラより「3」少ないダメージ設定
       if (this.spriteKey === 'kunoichi') {
-        dmg = Math.max(1, Math.round(dmg * 0.45));
+        dmg = Math.max(1, dmg - 3);
       }
 
       const hitstop = this.getHitstopDuration(this.currentAttackKind);
