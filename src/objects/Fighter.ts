@@ -116,6 +116,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
   public isAttacking: boolean = false;
   private currentAttackKind: AttackKind = 'stand_jab';
   private hasDealtDamageThisAttack: boolean = false;
+  private lastAttackConnected: boolean = false;
   private isStunned: boolean = false;
   private canAttackTime: number = 0;
   private attackSafetyTimer?: Phaser.Time.TimerEvent;
@@ -444,6 +445,8 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
         // 弱技の連打キャンセル受け付け（弱技同士のみ）
         if (!this.isCPU) {
           this.checkChainCancel();
+        } else {
+          this.checkCPUComboCancel(now);
         }
         return;
       }
@@ -768,7 +771,40 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  // ★ CPU AI（SF6 ドライブシステムを駆使する本格AI）
+  // ★ CPU専用コンボキャンセル（ヒット確認からの派生コンボ）
+  private checkCPUComboCancel(now: number): void {
+    if (!this.opponent || this.opponent.isDead) return;
+    const absDist = Math.abs(this.opponent.x - this.x);
+    if (absDist > 145) return;
+
+    // 前の技がヒットしていた場合、隙なくコンボを叩き込む！
+    if (this.lastAttackConnected && !this.opponent.isGuarding && !this.opponent.isParrying) {
+      this.lastAttackConnected = false;
+      const isLightMove = this.currentAttackKind.includes('lp') || this.currentAttackKind.includes('lk') || this.currentAttackKind === 'stand_jab';
+      const isMediumMove = this.currentAttackKind.includes('mp') || this.currentAttackKind.includes('mk') || this.currentAttackKind === 'crouch_low';
+
+      if (isLightMove && Math.random() < 0.80) {
+        this.isRecovering = false;
+        // 小技ヒット -> 中技（中足 or 中パンチ）
+        const nextAtk = Math.random() < 0.5 ? 'stand_mp' : 'crouch_mk';
+        this.triggerAttack(nextAtk);
+        this.cpuNextAttackReadyTime = now + 180;
+      } else if (isMediumMove && Math.random() < 0.70) {
+        this.isRecovering = false;
+        // 中技ヒット -> スーパーアーツ or 強技
+        if (this.saGauge >= 100 && Math.random() < 0.65) {
+          this.triggerSuperArt();
+          this.cpuNextAttackReadyTime = now + 350;
+        } else {
+          const heavyMove = Math.random() < 0.5 ? 'stand_hp' : 'stand_hk';
+          this.triggerAttack(heavyMove);
+          this.cpuNextAttackReadyTime = now + 240;
+        }
+      }
+    }
+  }
+
+  // ★ CPU AI（SF6 ドライブシステム・確定反撃・DI返し・連係を駆使する強化AI）
   private updateCPU(isGrounded: boolean): void {
     if (!this.opponent || this.opponent.isDead) {
       this.setVelocityX(0);
@@ -784,168 +820,253 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     const opBody = this.opponent.body as Phaser.Physics.Arcade.Body;
     const opponentInAir = opBody ? (!opBody.blocked.down && !opBody.touching.down) : false;
     const opponentIsAttacking = this.opponent.currentState === 'attacking';
-    const opponentIsSpamming = (this.opponent.sameMoveSpamCount ?? 0) >= 2;
     const opponentIsRecovering = this.opponent.currentState === 'recovery';
+    const opponentIsCrumpled = this.opponent.isCrumpled;
+    const opponentIsImpact = this.opponent.isImpact;
 
+    // 思考更新頻度：2フレームごと（約33ms）の高速判断でキビキビと反応
     this.cpuDecisionTimer++;
-    if (this.cpuDecisionTimer > 8) {
+    if (this.cpuDecisionTimer >= 2) {
       this.cpuDecisionTimer = 0;
 
-      // ★ 対連打AI：相手が同一技を連打・連発してきた場合の迎撃＆割り込み！
-      if (opponentIsSpamming && absDist < 165) {
-        // A. ドライブインパクト割り込み
-        const impactSpamChance = this.spriteKey === 'kunoichi' ? 0.15 : 0.60;
-        if (!this.isBurnout && this.driveGauge >= 1.0 && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && Math.random() < impactSpamChance) {
-          if (this.consumeDrive(1.0)) {
-            this.triggerDriveImpact();
-            this.cpuNextAttackReadyTime = now + 900;
-            return;
+      // ==========================================
+      // ① 最優先：相手のドライブインパクトへの反応（DI返し・パリィ）
+      // ==========================================
+      if (opponentIsImpact && absDist < 185) {
+        if (!this.isBurnout && this.driveGauge >= 1.0 && now >= this.canAttackTime && isGrounded) {
+          // 72%の確率でドライブインパクト返し！
+          if (Math.random() < 0.72) {
+            if (this.consumeDrive(1.0)) {
+              this.triggerDriveImpact();
+              this.cpuNextAttackReadyTime = now + 350;
+              return;
+            }
           }
         }
+        // DI返しできない場合・バーンアウト時はパリィまたはジャンプ回避
+        if (!this.isBurnout && Math.random() < 0.40) {
+          this.isParrying = true;
+          this.parryStartTime = now;
+          this.consumeDrive(0.5);
+          this.setVelocityX(0);
+          return;
+        } else if (isGrounded && Math.random() < 0.35) {
+          this.setVelocityY(-this.jumpPower);
+          const dir = dx > 0 ? -1 : 1;
+          this.setVelocityX(dir * this.retreatSpeed);
+          return;
+        }
+      }
 
-        // B. ドライブパリィ
-        const parrySpamChance = this.spriteKey === 'kunoichi' ? 0.15 : 0.55;
-        if (!this.isBurnout && Math.random() < parrySpamChance) {
+      // ==========================================
+      // ② 崩れ状態（膝崩れダウン中）の相手への最大痛打（Punish!）
+      // ==========================================
+      if (opponentIsCrumpled && isGrounded && now >= this.canAttackTime) {
+        if (absDist < 140) {
+          // SAゲージがあればスーパーアーツ！
+          if (this.saGauge >= 100) {
+            this.triggerSuperArt();
+            this.cpuNextAttackReadyTime = now + 350;
+            return;
+          }
+          // 強攻撃・ドライブインパクト
+          if (!this.isBurnout && this.driveGauge >= 1.0 && Math.random() < 0.45) {
+            if (this.consumeDrive(1.0)) {
+              this.triggerDriveImpact();
+              this.cpuNextAttackReadyTime = now + 380;
+              return;
+            }
+          }
+          this.triggerAttack('stand_hp');
+          this.cpuNextAttackReadyTime = now + 240;
+          return;
+        } else {
+          // 距離がある場合はダッシュ/前進で距離を詰める
+          this.cpuAction = 'approach';
+          this.isGuarding = false;
+        }
+      }
+
+      // ==========================================
+      // ③ 確定反撃（パニッシュカウンター）：相手の後隙を逃さず叩く
+      // ==========================================
+      if (opponentIsRecovering && absDist < 145 && isGrounded && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime) {
+        const punishAtk: AttackKind = absDist < 85 ? 'stand_hp' : (absDist < 115 ? 'stand_mp' : 'crouch_mk');
+        this.triggerAttack(punishAtk);
+        this.cpuNextAttackReadyTime = now + 220;
+        return;
+      }
+
+      // ==========================================
+      // ④ 飛び込みに対する対空迎撃（Anti-Air）
+      // ==========================================
+      if (opponentInAir && absDist < 155 && isGrounded && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime) {
+        if (Math.random() < 0.75) {
+          const antiAirMove: AttackKind = absDist < 95 ? 'crouch_hp' : 'anti_air';
+          this.triggerAttack(antiAirMove);
+          this.cpuNextAttackReadyTime = now + 280;
+          return;
+        }
+      }
+
+      // ==========================================
+      // ⑤ 相手の攻撃に対する防御（パリィ & ガード）
+      // ==========================================
+      if (opponentIsAttacking && absDist < 175) {
+        const parryChance = this.isBurnout ? 0 : 0.35;
+        if (Math.random() < parryChance && this.driveGauge >= 0.5) {
           this.isParrying = true;
           this.parryStartTime = now;
           this.consumeDrive(0.5);
           this.setVelocityX(0);
           return;
         } else {
-          // C. 的確なしゃがみ／立ちガード
           this.isParrying = false;
-          this.cpuAction = 'retreat';
-          this.isGuarding = true;
-          this.isCrouching = this.opponent.isCrouching;
-          return;
+          // 85%の確率でしっかりとガード！相手の姿勢に合わせて立ち／しゃがみガードを使い分ける
+          if (Math.random() < 0.85) {
+            this.cpuAction = 'retreat';
+            this.isGuarding = true;
+            // 相手がしゃがみ攻撃（下段）ならしゃがみガード、立ち/ジャンプなら立ちガード
+            this.isCrouching = this.opponent.isCrouching && !opponentInAir;
+            return;
+          }
         }
-      }
-
-      // ★ 確定反撃（パニッシュカウンター）：相手の技後隙（リカバリー硬直）を逃さず叩く！
-      if (opponentIsRecovering && absDist < 150 && isGrounded && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime) {
-        const punishAtk: AttackKind = absDist < 90 ? 'stand_hp' : 'stand_mp';
-        this.triggerAttack(punishAtk);
-        this.cpuNextAttackReadyTime = now + 700;
-        return;
-      }
-
-      // ① 相手が攻撃してきたら -> パリィ または ガード（くのいちCPUはパリィ率低減）
-      const parryAtkChance = this.spriteKey === 'kunoichi' ? 0.12 : 0.38;
-      if (opponentIsAttacking && absDist < 170 && !this.isBurnout && Math.random() < parryAtkChance) {
-        // ドライブパリィ
-        this.isParrying = true;
-        this.parryStartTime = now;
-        this.consumeDrive(0.5);
-        this.setVelocityX(0);
-        return;
       } else {
         this.isParrying = false;
       }
 
-      // ② 相手の飛び込みには対空（★ くのいちは対空率を75%->18%へ激減！プレイヤーが飛び込んで差し返せる！）
-      if (opponentInAir && absDist < 140 && isGrounded && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime) {
-        const antiAirChance = this.spriteKey === 'kunoichi' ? 0.18 : 0.75;
-        if (Math.random() < antiAirChance) {
-          this.triggerAttack('anti_air');
-          this.cpuNextAttackReadyTime = now + 800;
+      // ==========================================
+      // ⑥ スーパーアーツ（SAゲージ1本以上で好機に発動）
+      // ==========================================
+      if (this.saGauge >= 100 && absDist < 135 && now >= this.canAttackTime && now >= this.cpuNextAttackReadyTime && isGrounded) {
+        if (Math.random() < 0.35) {
+          this.triggerSuperArt();
+          this.cpuNextAttackReadyTime = now + 350;
           return;
         }
       }
 
-      // ③ SAゲージMAXならスーパーアーツを放つ
-      if (this.saGauge >= 100 && absDist < 130 && Math.random() < 0.30 && now >= this.canAttackTime) {
-        this.triggerSuperArt();
-        return;
-      }
-
-      // ④ ドライブインパクト（くのいちは控えめ）
-      const diChance = this.spriteKey === 'kunoichi' ? 0.12 : 0.22;
-      if (!this.isBurnout && this.driveGauge >= 1.5 && absDist < 140 && Math.random() < diChance && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime) {
-        if (this.consumeDrive(1.0)) {
-          this.triggerDriveImpact();
-          this.cpuNextAttackReadyTime = now + 900;
-          return;
-        }
-      }
-
-      // ⑤ 通常格闘の間合い
-      if (absDist >= 55 && absDist <= 160) {
-        const r = Math.random();
-        if (r < 0.45 && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
-          const atk: AttackKind = Math.random() < 0.4 ? 'crouch_low' : (Math.random() < 0.5 ? 'stand_jab' : 'stand_mk');
-          this.triggerAttack(atk);
-          this.cpuNextAttackReadyTime = now + 700;
-          return;
-        } else if (r < 0.72) {
-          this.cpuAction = 'approach';
-          this.isCrouching = false;
-        } else {
-          this.cpuAction = 'retreat';
-          this.isCrouching = this.opponent.isCrouching;
-        }
-      } else if (absDist > 160) {
-        // ★ くのいち専用AI：遠距離からの苦無投擲（頻度半減＆3.2秒の超ロングクールダウン）
-        if (this.spriteKey === 'kunoichi' && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
-          const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
-          if (!hasProj && Math.random() < 0.20) {
-            this.triggerAttack('stand_mp');
-            this.cpuNextAttackReadyTime = now + 3200; // 3.2秒のクールダウン
+      // ==========================================
+      // ⑦ ドライブインパクト（通常時の攻め）
+      // ==========================================
+      if (!this.isBurnout && this.driveGauge >= 1.5 && absDist < 140 && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
+        const baseDiChance = this.spriteKey === 'gladiator' ? 0.28 : 0.20;
+        if (Math.random() < baseDiChance) {
+          if (this.consumeDrive(1.0)) {
+            this.triggerDriveImpact();
+            this.cpuNextAttackReadyTime = now + 380;
             return;
           }
         }
-        // ★ コタロウ専用AI：中遠距離魔導術士（魔導弾とエーテルバーストで空間制圧）
-        if (this.spriteKey === 'kotaro' && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
-          const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
-          if (!hasProj && Math.random() < 0.35) {
-            this.triggerAttack('stand_mp'); // 蒼き魔導弾射出
-            this.cpuNextAttackReadyTime = now + 2000;
+      }
+
+      // ==========================================
+      // ⑧ 距離別の戦闘スタイル
+      // ==========================================
+      if (absDist < 80) {
+        // --- 至近距離の攻防 ---
+        // 相手がガードで固まっているなら「投げ（Throw）」を狙う！
+        if (this.opponent.isGuarding && now >= this.canAttackTime && now >= this.cpuNextAttackReadyTime && isGrounded && Math.random() < 0.45) {
+          this.triggerThrow();
+          this.cpuNextAttackReadyTime = now + 320;
+          return;
+        }
+
+        if (now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
+          const r = Math.random();
+          if (r < 0.50) {
+            // 小技ラッシュ（小パン／小足）
+            this.triggerAttack(Math.random() < 0.5 ? 'stand_lp' : 'crouch_lp');
+            this.cpuNextAttackReadyTime = now + 160;
             return;
-          } else if (absDist <= 220 && Math.random() < 0.30) {
-            this.triggerAttack('stand_hp'); // エーテルバースト（地面爆発）
-            this.cpuNextAttackReadyTime = now + 1200;
+          } else if (r < 0.78) {
+            // 下段崩し（中足／小足）
+            this.triggerAttack(Math.random() < 0.5 ? 'crouch_mk' : 'crouch_lk');
+            this.cpuNextAttackReadyTime = now + 220;
             return;
+          } else {
+            // 距離を少し取るステップバック
+            this.cpuAction = 'retreat';
+            this.isGuarding = true;
           }
         }
-        // コタロウは間合い200〜260pxの中遠距離をキープ
-        if (this.spriteKey === 'kotaro' && absDist < 220) {
-          this.cpuAction = 'retreat';
-          this.isCrouching = this.opponent.isCrouching;
-        } else {
-          this.cpuAction = 'approach';
-          this.isCrouching = false;
-        }
-        if (isGrounded && Math.random() < 0.08) {
-          this.setVelocityY(-this.jumpPower);
+      } else if (absDist >= 80 && absDist <= 170) {
+        // --- 中距離（差し合い・フォッツィ） ---
+        if (now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
+          const r = Math.random();
+          if (r < 0.58) {
+            // 牽制技（中足、中パンチ、強パンチ）
+            const pokeMoves: AttackKind[] = ['crouch_mk', 'stand_mp', 'stand_mk', 'stand_hp'];
+            const chosen = pokeMoves[Math.floor(Math.random() * pokeMoves.length)];
+            this.triggerAttack(chosen);
+            this.cpuNextAttackReadyTime = now + 220;
+            return;
+          } else if (r < 0.82) {
+            this.cpuAction = 'approach';
+            this.isGuarding = false;
+            this.isCrouching = false;
+          } else {
+            this.cpuAction = 'retreat';
+            this.isGuarding = true;
+            this.isCrouching = this.opponent.isCrouching;
+          }
         }
       } else {
-        // 至近距離
+        // --- 遠距離（間合い 170px 超） ---
+        // ★ くのいち（Kurenai）：苦無投擲と素早い接近
+        if (this.spriteKey === 'kunoichi' && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
+          const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
+          if (!hasProj && Math.random() < 0.45) {
+            this.triggerAttack('stand_mp'); // 苦無投擲
+            this.cpuNextAttackReadyTime = now + 650;
+            return;
+          }
+        }
+
+        // ★ コタロウ（Kotaro）：青い鳥魔導弾とエーテルバーストによる強力な遠距離ゾーニング
+        if (this.spriteKey === 'kotaro' && now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded) {
+          const hasProj = (this.scene as any).hasActiveProjectile?.(this) ?? false;
+          if (!hasProj && Math.random() < 0.55) {
+            this.triggerAttack('stand_mp'); // 蒼き魔導弾＆青い鳥射出
+            this.cpuNextAttackReadyTime = now + 600;
+            return;
+          } else if (absDist <= 240 && Math.random() < 0.40) {
+            this.triggerAttack('stand_hp'); // エーテルバースト（足元爆発）
+            this.cpuNextAttackReadyTime = now + 400;
+            return;
+          }
+        }
+
+        // 遠距離での立ち回り
         if (this.spriteKey === 'kotaro') {
-          // コタロウは至近距離に入られたら魔導旋風キックや足払いで相手を押し返して間合いを取る
-          if (now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded && Math.random() < 0.50) {
-            this.triggerAttack(Math.random() < 0.5 ? 'stand_hk' : 'crouch_low');
-            this.cpuNextAttackReadyTime = now + 800;
-            return;
+          // コタロウは間合い180〜260pxを維持
+          if (absDist < 200) {
+            this.cpuAction = 'retreat';
+            this.isGuarding = true;
+          } else if (absDist > 270) {
+            this.cpuAction = 'approach';
+            this.isGuarding = false;
           }
-          this.cpuAction = 'retreat';
-          this.isCrouching = this.opponent.isCrouching;
         } else {
-          if (now >= this.cpuNextAttackReadyTime && now >= this.canAttackTime && isGrounded && Math.random() < 0.55) {
-            this.triggerAttack(Math.random() < 0.5 ? 'stand_jab' : 'crouch_low');
-            this.cpuNextAttackReadyTime = now + 700;
-            return;
+          // 他キャラは間合いを詰めて攻め込む
+          this.cpuAction = 'approach';
+          this.isGuarding = false;
+          // たまに飛び込みジャンプで奇襲
+          if (isGrounded && Math.random() < 0.12 && absDist > 200 && absDist < 320) {
+            this.setVelocityY(-this.jumpPower);
+            const dir = dx > 0 ? 1 : -1;
+            this.setVelocityX(dir * this.forwardSpeed * 1.1);
           }
-          this.cpuAction = 'retreat';
-          this.isCrouching = this.opponent.isCrouching;
         }
       }
     }
 
-    // 行動実行
+    // 行動実行（移動 & ガード姿勢）
     if (this.cpuAction === 'approach') {
       this.isGuarding = false;
       this.isCrouching = false;
       const dir = dx > 0 ? 1 : -1;
-      this.setVelocityX(dir * this.forwardSpeed * 0.9);
+      this.setVelocityX(dir * this.forwardSpeed);
     } else if (this.cpuAction === 'retreat') {
       this.isGuarding = true;
       const dir = dx > 0 ? -1 : 1;
@@ -1365,6 +1486,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
     this.armorHitsLeft = 0;
     this.currentAttackKind = kind;
     this.hasDealtDamageThisAttack = false;
+    this.lastAttackConnected = false;
     this.currentState = 'attacking';
 
     const isKick = kind.includes('lk') || kind.includes('mk') || kind.includes('hk') || kind === 'air_kick' || kind === 'crouch_low';
@@ -1854,6 +1976,7 @@ export class Fighter extends Phaser.Physics.Arcade.Sprite {
       this.opponent.onGuardSuccess(knockbackDir);
       this.createGuardEffect(contactX, contactY);
     } else {
+      this.lastAttackConnected = true;
       // クリーンヒット時のダメージ
       let dmg = 12;
       const k = this.currentAttackKind;
